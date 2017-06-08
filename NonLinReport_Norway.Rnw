@@ -1,0 +1,628 @@
+\documentclass{report}
+\usepackage{blindtext}
+\usepackage[T1,T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english, russian]{babel}
+\usepackage{longtable}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{color}
+
+
+\title{Non-Linear Time Series Analysis: Norway, Switzerland and Russia}
+\author{by Kseniia Kurkova}
+\begin{document}
+\date{}
+\maketitle
+
+
+
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE, results='hide'>>=
+library("fNonlinear")
+library(tseries)
+library(Quandl)
+library("xlsx")
+library("nlme")  
+library("stargazer")
+library(rpart)
+library(ISLR)
+library(rpart.plot)
+library("zoo")
+library("ggfortify")
+library("ggplot2")
+library("stargazer")
+library("lmtest")
+library(tseries)
+library(CADFtest)
+library("forecast")
+library("dynlm")
+library("hydroGOF")
+library("xtable")
+library("egcm")
+library("stats")
+library("xlsx") 
+library("zoo")
+library("ggfortify")
+library("ggplot2")
+library("stargazer")
+library("lmtest")
+library(tseries)
+library(CADFtest)
+library("forecast")
+library("dynlm")
+library("hydroGOF")
+library("xtable")
+library("egcm")
+library("stats")
+library(fGarch)  
+library("tsDyn")
+library("nlts")
+library(fGarch)
+library(MSwM)
+library("fNonlinear")
+library(ggplot2)
+library(reshape2)
+library(zoo)
+library(mFilter)
+library(waveslim)
+library(EMD)
+
+lagpad<-function(x,k){
+if(!is.vector(x))
+stop('xmustbeavector')
+if(!is.numeric(x))
+stop('xmustbenumeric')
+if(!is.numeric(k))
+stop('kmustbenumeric')
+if(1!=length(k))
+stop('kmustbeasinglenumber')
+c(rep(NA,k),x)[1:length(x)]
+}
+plot.cycles <- function(d,t) {
+  ggplot(g,aes(x=Time,y=value,linetype=variable)) + 
+    geom_hline(yintercept=0,colour="grey80") + # Create a horizontal line with value 0
+    geom_line(size=.5) + # Create line with series and specify its thickness
+    labs(x="Time",y="",title=t,linetype="Legend:") + # Title of the legend
+    coord_cartesian(xlim=c(min(g[,1]),max(g[,1]))) + # Set displayed area
+    guides(linetype=guide_legend()) + # Set the variables contained in the legend
+    theme(legend.position="bottom", # Position of the legend
+          legend.key=element_rect(fill="white"), # Set background of the legend keys
+          panel.background = element_rect(fill = "white"), # Set background of the graph
+          axis.line=element_line(size=.3,colour="black"), # Set the size and colour of the axes
+          axis.text=element_text(colour="black"), # Set the colour of the axes text
+          panel.grid=element_blank()) # Set grid lines off
+}
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+
+nl <- read.xlsx("~/Desktop/R/nonlin.xlsx", sheetName = "History")
+names(nl) <- c("Time","Norway", "Russia", "Switz") # Rename variables
+che <- ts(nl[,4], frequency=12, start=c(1969,12))
+nor <- ts(nl[,2], frequency=12, start=c(1969,12))
+rus <- ts(nl[,3], frequency=12, start=c(1969,12))
+
+chelag <- ts(lagpad(nl[,4],1), frequency=12, start=c(1969,12))
+chep <- log(che/chelag)
+chep.v <- log(nl[,4]/lagpad(nl[,4],1))
+
+ruslag <- ts(lagpad(nl[,3],1), frequency=12, start=c(1969,12))
+rusp <- log(rus/ruslag)
+rusp.v <- log(nl[,3]/lagpad(nl[,3],1))
+
+norlag <- ts(lagpad(nl[,2],1), frequency=12, start=c(1969,12))
+norp <- log(nor/norlag)
+norp.v <- log(nl[,2]/lagpad(nl[,2],1))
+
+
+INF <- read.xlsx("~/Desktop/R/INF_DB.xls", sheetName = "Selected Data") #inflation rates in countries, annually
+
+che.inf <- ts(INF[,5], frequency=1, start=c(1960,1))
+nor.inf <- ts(INF[,2], frequency=1, start=c(1960,1))
+rus.inf <- ts(INF[,3], frequency=1, start=c(1960,1))
+usa.inf <- ts(INF[,4], frequency=1, start=c(1960,1))
+
+PCEPILFE <- read.xlsx("~/Desktop/R/PCEPILFE.xls", sheetName = "FRED Graph") #Personal Consumption Expenditures Excluding Food and Energy, monthly
+pce  <- ts(PCEPILFE[,2], frequency=12, start=c(1959,1))
+
+CPI  <- read.xlsx("~/Desktop/R/CPI_DB.xls",sheetName = "Selected Data")
+che.cpi <- ts(CPI[,4], frequency=4, start=c(1956,1))
+nor.cpi <- ts(CPI[,2], frequency=12, start=c(1956,1))
+rus.cpi <- ts(CPI[,6], frequency=12, start=c(1993,1))
+oecd.cpi <- ts(CPI[,8], frequency=4, start=c(1970,1))
+
+HCPI  <- read.xlsx("~/Desktop/R/CPI_DB.xls",sheetName = "CHE HCPI")
+hcpi <- ts(HCPI[,2], frequency=12, start=c(1960,1)) #harmonized Consumer Price Index: OECD Groups: All Items Non-Food and Non-Energy for Switzerland
+@
+
+\section{Analysis}
+
+Firstly we analyse the time series by season-trend factors, autocorrelation and stationarity. 
+
+\subsection{Russia}
+We can see the obvious trend and seasonality. The data is not stationary, the continious yield is. Autocorrelation has a degree of 3 due to the spectrum of time series.
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE, fig.align='center', fig.pos="H", fig.height=4, fig.width=10>>=
+par(mfrow=c(1,2)) 
+rus.plot <- ts(rus[301:nrow(nl)], frequency=12, start=c(1994,12))
+fit <- stl(na.omit(rus.plot), s.window=5)
+plot(rus.plot, col="gray",
+     main="Russian Index",
+     ylab="Index Value",xlim=c(1994,2017))
+lines(fit$time.series[,2],col="red",ylab="Trend")
+plot(rusp, xlim=c(1994,2017), main="Russian Index Continious Yield")
+spectrum(na.omit(rusp),method="ar") #3
+adf.test(na.omit(rusp), alternative=c('stationary'))
+@
+
+\subsection{Norway}
+
+Trend is also significant. The autocorrelation has a degree of 5 due to the spectrum of time series.
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE, fig.align='center', fig.pos="H", fig.height=4, fig.width=10>>=
+par(mfrow=c(1,2)) 
+fit <- stl(na.omit(nor), s.window=5)
+plot(nor, col="gray",
+     main="Norwegian Index",
+     ylab="Index Value",xlim=c(1969,2017))
+lines(fit$time.series[,2],col="red",ylab="Trend")
+plot(norp, xlim=c(1969,2017), main="Norwegian Index Continious Yield")
+spectrum(na.omit(norp),method="ar") #5
+adf.test(na.omit(norp), alternative=c('stationary'))
+@
+
+\subsection{Switzerland}
+Trend is also significant. The autocorrelation has a degree of 4 due to the spectrum of time series.
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE, fig.align='center', fig.pos="H", fig.height=4, fig.width=10>>=
+par(mfrow=c(1,2)) 
+fit <- stl(na.omit(che), s.window=5)
+plot(che, col="gray",
+     main="Swiss Index",
+     ylab="Index Value",xlim=c(1969,2017))
+lines(fit$time.series[,2],col="red",ylab="Trend")
+plot(norp, xlim=c(1969,2017), main="Norwegian Index Continious Yield")
+spectrum(na.omit(chep),method="ar") #4
+adf.test(na.omit(chep), alternative=c('stationary'))
+@
+
+
+\section{Cycles}
+
+There is from 3 to 5 cycles in a decade for all the countries. The resemlance of the cycles and the detrended data is situational. The most subjective results are driven by the Empirical Mode Decomposition method (EMD). However, in case of Russia it gives more of a strategic approach of looking on data.
+
+\subsection{Cycles in Norwegian Index Values}
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE,fig.align='center', fig.pos="H", fig.height=10, fig.width=10>>=
+lnor <- log(nl[,"Norway"]) # Take logs
+lche <- log(nl[,"Switz"]) # Take logs
+
+#----------------------------------------Norway----------------------------------------
+p1 <- ggplot(nl,aes(x=Time,y=lnor)) + geom_line(size=.5) + theme_classic() + labs(title="Log Real Norway Index")
+
+
+#-----Linearly.Detrended-----
+time.detrend <- residuals(lm(lnor ~ Time, data=nl)) # Regress Index on Time and obtain residuals
+dat <- data.frame("Time"=nl[,"Time"],"Linearly.Detrended"=time.detrend)
+#ggplot(dat,aes(x=Time,y=Linearly.Detrended)) + geom_line(size=.5) +geom_vline(xintercept=0, colour="grey80") + theme_classic() + labs(title="Linearly Detrended",y="")
+fd <- diff(lnor) # Take first difference
+dat <- data.frame("Time"=dat[,"Time"],"First.Difference"=c(NA,fd),"Linearly.Detrended"=dat[,"Linearly.Detrended"])
+g <- melt(dat,id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("First Difference","Linearly Detrended")
+p2  <- plot.cycles(d=g,t="Linearly Detrended vs. First Difference")
+
+
+#-----Hodrick Prescott-----
+hp <- hpfilter(lnor,freq=1600)$cycle # Apply filter and obtain data of the cycle compontent
+dat <- cbind(dat,data.frame("Hodrick.Prescott"=hp))
+g <- melt(dat[,c(1,4,3)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Hodrick Prescott","Linearly Detrended")
+p3 <- plot.cycles(g,"Hodrick Prescott vs. Linearly Detrended")
+
+
+#-----Baxter King-----
+bk <- bkfilter(lnor,pl=6,pu=32,nfix=12)$cycle[,1] # Apply filter and obtain cycle component
+dat <- cbind(dat,data.frame("Baxter.King"=bk))
+g <- melt(dat[,c(1,5,4)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Baxter King","Hodrick Prescott")
+p4 <- plot.cycles(g,"Baxter King vs. Hodrick Prescott")
+
+#-----Wavelet-----
+wavelet <- as.data.frame(mra(diff(lnor),J=5)) # Apply filter
+dat <- cbind(dat,data.frame("Wavelet"=c(NA,cumsum(rowSums(wavelet[,3:4])))))
+g <- melt(dat[,c(1,6,5)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Wavelet","Baxter King")
+p5 <- plot.cycles(g,"Wavelet vs. Baxter King")
+
+
+#-----EMD-----
+emd <- as.data.frame(emd(xt=diff(lnor),boundary="wave",stoprule="type2")$imf)
+dat <- cbind(dat,data.frame("EMD"=c(NA,cumsum(rowSums(emd[,3:6])))))
+g <- melt(dat[,c(1,7,4)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("EMD","Hodrick Prescott")
+p6 <- plot.cycles(g,"EMD vs. Hodrick Prescott")
+
+multiplot(p1,p2,p3)
+multiplot(p4,p5,p6)
+@
+
+
+\subsection{Cycles in Russian Index Values}
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE, fig.align='center', fig.pos="H", fig.height=10, fig.width=10>>=
+rdf  <- nl[301:nrow(nl),]
+lrus <- log(rdf[,"Russia"]) # Take logs
+
+#----------------------------------------Russia----------------------------------------
+p1 <- ggplot(rdf,aes(x=Time,y=lrus)) + geom_line(size=.5) + theme_classic() + labs(title="Log Real Russian Index")
+
+
+#-----Linearly.Detrended-----
+time.detrend <- residuals(lm(lrus ~ Time, data=rdf)) # Regress Index on Time and obtain residuals
+dat <- data.frame("Time"=rdf[,"Time"],"Linearly.Detrended"=time.detrend)
+#ggplot(dat,aes(x=Time,y=Linearly.Detrended)) + geom_line(size=.5) +geom_vline(xintercept=0, colour="grey80") + theme_classic() + labs(title="Linearly Detrended",y="")
+fd <- diff(lrus) # Take first difference
+dat <- data.frame("Time"=dat[,"Time"],"First.Difference"=c(NA,fd),"Linearly.Detrended"=dat[,"Linearly.Detrended"])
+g <- melt(dat,id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("First Difference","Linearly Detrended")
+p2  <- plot.cycles(d=g,t="Linearly Detrended vs. First Difference")
+
+
+#-----Hodrick Prescott-----
+hp <- hpfilter(lrus,freq=1600)$cycle # Apply filter and obtain data of the cycle compontent
+dat <- cbind(dat,data.frame("Hodrick.Prescott"=hp))
+g <- melt(dat[,c(1,4,3)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Hodrick Prescott","Linearly Detrended")
+p3 <- plot.cycles(g,"Hodrick Prescott vs. Linearly Detrended")
+
+
+#-----Baxter King-----
+bk <- bkfilter(lrus,pl=6,pu=32,nfix=12)$cycle[,1] # Apply filter and obtain cycle component
+dat <- cbind(dat,data.frame("Baxter.King"=bk))
+g <- melt(dat[,c(1,5,4)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Baxter King","Hodrick Prescott")
+p4 <- plot.cycles(g,"Baxter King vs. Hodrick Prescott")
+
+#-----Wavelet-----
+wavelet <- as.data.frame(mra(diff(lrus),J=5)) # Apply filter
+dat <- cbind(dat,data.frame("Wavelet"=c(NA,cumsum(rowSums(wavelet[,3:4])))))
+g <- melt(dat[,c(1,6,5)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Wavelet","Baxter King")
+p5 <- plot.cycles(g,"Wavelet vs. Baxter King")
+
+
+#-----EMD-----
+emd <- as.data.frame(emd(xt=diff(lrus),boundary="wave",stoprule="type2")$imf)
+dat <- cbind(dat,data.frame("EMD"=c(NA,cumsum(rowSums(emd[,3:6])))))
+g <- melt(dat[,c(1,7,4)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("EMD","Hodrick Prescott")
+p6 <- plot.cycles(g,"EMD vs. Hodrick Prescott")
+
+multiplot(p1,p2,p3)
+multiplot(p4,p5,p6)
+@
+
+\subsection{Cycles in Swiss Index Values}
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE, fig.align='center', fig.pos="H", fig.height=10, fig.width=10>>=
+
+
+#----------------------------------------CHE----------------------------------------
+p1 <- ggplot(nl,aes(x=Time,y=lche)) + geom_line(size=.5) + theme_classic() + labs(title="Log Real Swiss Index")
+
+
+#-----Linearly.Detrended-----
+time.detrend <- residuals(lm(lche ~ Time, data=nl)) # Regress Index on Time and obtain residuals
+dat <- data.frame("Time"=nl[,"Time"],"Linearly.Detrended"=time.detrend)
+#ggplot(dat,aes(x=Time,y=Linearly.Detrended)) + geom_line(size=.5) +geom_vline(xintercept=0, colour="grey80") + theme_classic() + labs(title="Linearly Detrended",y="")
+fd <- diff(lche) # Take first difference
+dat <- data.frame("Time"=dat[,"Time"],"First.Difference"=c(NA,fd),"Linearly.Detrended"=dat[,"Linearly.Detrended"])
+g <- melt(dat,id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("First Difference","Linearly Detrended")
+p2  <- plot.cycles(d=g,t="Linearly Detrended vs. First Difference")
+
+
+#-----Hodrick Prescott-----
+hp <- hpfilter(lche,freq=1600)$cycle # Apply filter and obtain data of the cycle compontent
+dat <- cbind(dat,data.frame("Hodrick.Prescott"=hp))
+g <- melt(dat[,c(1,4,3)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Hodrick Prescott","Linearly Detrended")
+p3 <- plot.cycles(g,"Hodrick Prescott vs. Linearly Detrended")
+
+
+#-----Baxter King-----
+bk <- bkfilter(lche,pl=6,pu=32,nfix=12)$cycle[,1] # Apply filter and obtain cycle component
+dat <- cbind(dat,data.frame("Baxter.King"=bk))
+g <- melt(dat[,c(1,5,4)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Baxter King","Hodrick Prescott")
+p4 <- plot.cycles(g,"Baxter King vs. Hodrick Prescott")
+
+#-----Wavelet-----
+wavelet <- as.data.frame(mra(diff(lche),J=5)) # Apply filter
+dat <- cbind(dat,data.frame("Wavelet"=c(NA,cumsum(rowSums(wavelet[,3:4])))))
+g <- melt(dat[,c(1,6,5)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("Wavelet","Baxter King")
+p5 <- plot.cycles(g,"Wavelet vs. Baxter King")
+
+
+#-----EMD-----
+emd <- as.data.frame(emd(xt=diff(lche),boundary="wave",stoprule="type2")$imf)
+dat <- cbind(dat,data.frame("EMD"=c(NA,cumsum(rowSums(emd[,3:6])))))
+g <- melt(dat[,c(1,7,4)],id.vars="Time",na.rm=TRUE)
+levels(g[,2]) <- c("EMD","Hodrick Prescott")
+p6 <- plot.cycles(g,"EMD vs. Hodrick Prescott")
+
+multiplot(p1,p2,p3)
+multiplot(p4,p5,p6)
+@
+
+\section{GARCH Modelling}
+\subsection{Testing the possibility of using GARCH}
+There is a spatial dependence for the data of all 3 countries due to Brock–Dechert–Sheinkman Test. However, only the Swiss Index cannot be described thorugh GARCH. Therefore we will build a Markov Switching model for this country later. For the latter two we will try to analyse GARCH-M and T-GARCH.
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+#bds.test(na.omit(chep)) #H0: data is iid is rejected => spatial dependence
+#bds.test(na.omit(norp)) #H0: data is iid is rejected => spatial dependence
+#bds.test(na.omit(rusp)) #H0: data is iid is rejected => spatial dependence
+
+chep.garch = garch(na.omit(chep), order=c(5,5), trace=F)
+rusp.garch = garch(na.omit(rusp), order=c(1,1), trace=F)
+norp.garch = garch(na.omit(norp), order=c(5,5), trace=F)
+
+bds.test(na.omit(residuals(chep.garch, standard=T)), m=5, eps=c(0.5, 1, 1.5)) #m=3 CANNOT be described w/ garch, eps=1.5
+bds.test(na.omit(residuals(rusp.garch, standard=T)), m=5, eps=c(0.5, 1, 1.5)) #can be described w/ garch, m=2, eps=1.5
+bds.test(na.omit(residuals(norp.garch, standard=T)), m=5, eps=c(0.5, 1, 1.5)) #can be described w/ garch, m=5, eps=1.5
+@
+
+\subsection{Basic GARCH-model for Norway}
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE, results='hide'>>=
+m2=garchFit(~garch(3,1),data=na.omit(norp.v),trace=F)
+
+#sresi=m2@residuals/m2@sigma.t
+#qqnorm(sresi)
+#qqline(sresi)
+norp.new.good <- ts(predict(m2,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,5],frequency=12, start=c(2017,1))
+norp.new.basic <- ts(predict(m2,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,1], frequency=12, start=c(2017,1))
+norp.new.bad <- ts(predict(m2,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,4], frequency=12, start=c(2017,1))
+@
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+par(mfrow=c(1,1)) 
+norp.v.ts <- ts(norp.v,frequency=12, start=c(1969,12))
+plot(norp.v.ts , main="Garch Norway Index Modelling", ylab="Value", xlim=c(1970,2030))
+lines(norp.new.good , col="green", lwd=3)
+lines(norp.new.basic, col="blue", lwd=3)
+lines(norp.new.bad , col="red", lwd=3)
+legend("bottomright",
+       legend=c("Good Forecast", "Basic Forecast","Bad Forecast"),
+       lty=c(1,1), lwd=c(3,3),col=c("green", "blue", "red"))
+@
+
+\subsection{Basic GARCH and T-GARCH for Russia}
+
+T-GARCH for Russia. The T-GARCH is a assymetric model for describing the leverage effect, verbal support, behavioral factors and news influencing the volaitility.
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE, results='hide', comment=FALSE, cache=FALSE>>=
+#An APARCH model with delta=1 is TGARCH and delta=2 is GJR GARCH model. 
+
+rusp.v.ts <- ts(rusp.v,frequency=12, start=c(1969,12)) #russian raw data
+
+#-----------------Building T-GARCH-----------------
+TGARCH.rus <- garchFit(~aparch(1, 1), data = na.omit(rusp.v), delta=1) #building TGARCH for Russia
+rusp.new.good <- ts(predict(TGARCH.rus,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,5],frequency=12, start=c(2017,1)) #predictinf the scenarios
+rusp.new.basic <- ts(predict(TGARCH.rus,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,1], frequency=12, start=c(2017,1))
+rusp.new.bad <- ts(predict(TGARCH.rus,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,4], frequency=12, start=c(2017,1))
+
+#-----------------Building GARCH-----------------
+m3=garchFit(~garch(3,1),data=na.omit(rusp.v),trace=F)
+new.good <- ts(predict(m3,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,5],frequency=12, start=c(2017,1))
+new.basic <- ts(predict(m3,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,1], frequency=12, start=c(2017,1))
+new.bad <- ts(predict(m3,n.ahead=100,plot=TRUE,conf=.9,nx=100)[,4], frequency=12, start=c(2017,1))
+@
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+par(mfrow=c(1,2)) 
+plot(rusp.v.ts , main="Basic GARCH Russian Index Modelling", ylab="Value", xlim=c(1994,2025))
+lines(new.good , col="green", lwd=3)
+lines(new.basic, col="blue", lwd=3)
+lines(new.bad , col="red", lwd=3)
+legend("bottomright",
+      legend=c("Good Forecast", "Basic Forecast","Bad Forecast"),
+       lty=c(1,1), lwd=c(3,3),col=c("green", "blue", "red")) 
+
+plot(rusp.v.ts , main="TGARCH Russian Index Modelling", ylab="Value", xlim=c(1994,2025))
+lines(rusp.new.good , col="green", lwd=3)
+lines(rusp.new.basic, col="blue", lwd=3)
+lines(rusp.new.bad , col="red", lwd=3)
+legend("bottomright",
+      legend=c("Good Forecast", "Basic Forecast","Bad Forecast"),
+     lty=c(1,1), lwd=c(3,3),col=c("green", "blue", "red"))
+@
+
+
+\section{Linearity in Mean: Teraesvirta Neural Network Test and White Neural Network Test}
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+#lags are from spectrum() function (pacf can also be usedL pacf(na.omit(chep)))
+tnnTest(na.omit(norp), lag=4) #nonlin in mean
+tnnTest(na.omit(chep), lag=4) #nonlin in mean
+tnnTest(na.omit(rusp), lag=3) #nonlin in mean
+
+white.test(na.omit(norp),lag=4) #lin in mean
+white.test(na.omit(chep), lag=4) #lin in mean
+white.test(na.omit(rusp), lag=3) #nonlin in mean, when sig=10%
+
+@
+
+No non-linearity in mean for Norway and Switzerland. But, there is a non-linearity in mean for Russia. 
+
+\section{Threshold Models}
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+setarTest(na.omit(norp), m=5, d=1, steps=4) #linear
+setarTest(na.omit(chep), m=3, d=1, steps=4) #linear
+setarTest(na.omit(rusp), m=2, d=1, steps=4)
+@
+
+All the countries show linearity against threshold of Hansen (1999) with bootstrap distribution.
+
+\subsection{Delta Testing}
+A delta is a statistic of conditional independence and associated bootstrap test. In terms of non-linearity delta tests linearity based on conditional mutual information. The null hyp. is that there is no difference btw parametric and nonparametric delta estimators.
+
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+delta.lin.test(na.omit(norp), m=5) #no difference btw parametric and nonparametric delta estimators
+delta.lin.test(na.omit(rusp), m=2) #THERE IS a difference btw parametric and nonparametric delta estimators
+delta.lin.test(na.omit(chep), m=3) #no difference btw parametric and nonparametric delta estimators
+@
+
+There is a difference btw. parametric and nonparametric delta estimators for Russia. Therefore it is relevant to build a SETAR model for Russian Index.
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+obj <- setar(na.omit(rusp), m=2, d=2, steps=20, thDelay=1)
+#plot(obj)
+rusp.new <- ts(predict(obj, n.ahead=200), frequency=12, start=c(2017,1))
+plot(rusp,yaxs = 'i', xlim=c(1993,2020), main="SETAR modelling for Russian Index")
+lines(rusp.new, col="red", lwd=3)
+@
+
+\section{Markov Switching}
+\subsection{Markov Switching for Russia}
+
+\begin{equation}
+\label{fst}
+\rho_{t}=\rho_{t-1}+\; P\mbox{CE}_{t}+Inflation_{t}
+\end{equation}
+
+By building the model \ref{fst} we aquire the following Markov Switching model. The residuals look good. There is one AR coefficient.
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+R.cpi_raw  <- as.numeric(as.character(CPI[24:290,6]))
+R.pce_raw <- PCEPILFE[432:698,2]
+R.cpi <- ((R.cpi_raw-lagpad(R.cpi_raw,1))/lagpad(R.cpi_raw,1))[2:267]
+R.ind  <- (log(nl[301:567, 3]/lagpad(nl[301:567, 3],1)))[2:267]
+R.pce  <- ((R.pce_raw-lagpad(R.pce_raw,1))/lagpad(R.pce_raw,1))[2:267]
+
+R.ind1 <- R.ind[2:266]
+R.cpi1 <- R.cpi[2:266]
+R.pce1 <- R.pce[2:266]
+mod<-lm(R.ind1~R.pce1+R.cpi1)
+#Model with only intercept
+#Fit regime-switching model
+mod.mswm=msmFit(mod, k=2, p=1,sw=c(T,F,T,T,T))
+#plot(mod.mswm)
+
+plotProb(mod.mswm,which=2)
+plotProb(mod.mswm,which=3)
+#plotDiag(mod.mswm)
+summary(mod.mswm)
+
+@
+
+
+\subsection{Markov Switching for Switzerland}
+
+\begin{equation}
+\label{snd}
+Index_{t}=Index_{t-1}+Index_{t-2}+P\mbox{CE}PILF\mbox{E}_{t}+CPI_{t}
+\end{equation}
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+S.cpi_raw  <- as.numeric(as.character(HCPI[120:686,2]))
+S.ind_raw  <- nl[1:567, 4]
+S.inf <- ((S.cpi_raw-lagpad(S.cpi_raw,1))/lagpad(S.cpi_raw,1))[2:567]
+S.ind  <- (log(nl[1:567, 4]/lagpad(nl[1:567, 4],1)))[2:567]
+S.pce_raw <- PCEPILFE[132:698,2]
+S.pce  <- ((S.pce_raw-lagpad(S.pce_raw,1))/lagpad(S.pce_raw,1))[2:567]
+
+S.inf[is.na(S.inf)] <- 0
+S.inf[is.infinite(S.inf)] <- 0 
+
+#mod<-lm(S.ind~S.pce+S.inf)
+#summary(mod)
+#mod.mswm=msmFit(mod, k=3, p=2,sw=c(T,T,T,T,T,T))
+#plotProb(mod.mswm, which=2)
+#plotProb(mod.mswm,which=3)
+#plotProb(mod.mswm,which=4)
+#summary(mod.mswm)
+#plot(S.ind[3:566],msmResid(mod.mswm, 1))
+
+mod<-lm(S.ind_raw~S.cpi_raw+S.pce_raw)
+mod.mswm=msmFit(mod, k=2, p=2,sw=c(T,T,T,T,T,T))
+#plot(mod.mswm)
+#plotProb(mod.mswm, which=1)
+plotProb(mod.mswm, which=2)
+plotProb(mod.mswm, which=3)
+
+par(mfrow=c(1,2)) 
+plot(S.ind_raw[3:567],msmResid(mod.mswm, 1))
+#plot(ts(msmResid(mod.mswm, 1)))
+#lines(ts(msmResid(mod.mswm, 2)), col="red")
+@
+
+
+\section{Linear Models}
+We can see that linear models: Exponential smoothing state space model and Random Walk build just a straight line as a forecast for Swiss Continious Yields, which doesn't explain any variation of Index in the future.
+
+<<echo=FALSE, cache=FALSE, warning=FALSE, cache=FALSE, message=FALSE>>=
+#другие модели
+par(mfrow=c(1,2)) 
+fit <- forecast::ets(na.omit(chep)) #Exponential smoothing state space model, сравнить с setar
+fcast <- forecast(fit, h=200,level=c(50,80,95))
+plot(fcast,xlim=c(1970,2020))
+
+
+fit <- forecast::rwf(chep) #Random Walk или Случайное блуждание
+fcast <- forecast(fit, h=200, level=c(50,80,95))
+plot(fcast,xlim=c(1970,2020))
+@
+
+\section{The Final Word}
+The algorythm of working with non-linearity except from deriving the business cycles is the following.
+
+\begin{enumerate}
+\item Take the continious yields of time series
+\item Make sure the continious yields are stationary
+\item Find the autocorrelation "rate" from the ACF and spectrum
+\item Build simple GARCH models
+\item Check the seriduals fo the GARCH model by BDS test: if GARCH cannot be built go directly to the part of Markov Switching Model Building
+\item If GARCH can be built, check the time series upon non-linearity in mean by TNN or White tests: if there is a non-linearity in mean then build a Threshold Model (or a Markov Switching).
+\item If there isn't a non-linearity in mean then just build an assymptotic GARCH Model.
+\end{enumerate}
+
+\end{document}
+
+
